@@ -144,7 +144,7 @@ export default function Home() {
         <div className="section-heading"><div><div className="eyebrow">02 / VOICE TOOLS</div><h2>Keep both sides in the conversation.</h2></div></div>
         <div className="voice-grid">
           <div className="panel voice-card">
-            <div className="card-icon"><Mic size={19} /></div><h3>Speech to text</h3><p>Turn spoken words into readable text using your browser's speech recognition, where supported.</p>
+            <div className="card-icon"><Mic size={19} /></div><h3>Speech to text</h3><p>Turn spoken words into readable text using your browser&apos;s speech recognition, where supported.</p>
             <label htmlFor="heardText">Recognized speech</label><textarea id="heardText" value={heardText} onChange={(e) => setHeardText(e.target.value)} placeholder="Speech transcript will appear here, or type/edit it…" />
             <div className="card-actions"><button className="secondary-btn" onClick={toggleListening}>{listening ? <><MicOff size={16} /> Stop listening</> : <><Mic size={16} /> Start listening</>}</button><span className="small-note">Browser support varies</span></div>
           </div>
