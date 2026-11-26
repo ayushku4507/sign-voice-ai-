@@ -15,6 +15,7 @@ type Detector = {
 type Capture = { label: string; startedAt: number; lastSampleAt: number; frames: number[][] };
 type MlpLayer = { w: number[][]; b: number[]; act: "relu" | "softmax" | "linear" };
 type MlpModel = { labels: string[]; featureLength: number; layers: MlpLayer[] };
+type Match = { label: string; match: number; source: "trained" | "sample" };
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const STORAGE_KEY = "signvoice-asl-alphabet-v1";
@@ -130,7 +131,7 @@ function findMatch(
   sequence: number[][],
   samples: Sample[],
   model: MlpModel | null,
-) {
+): Match | null {
   if (!pose) return null;
   const staticSamples = samples.filter((sample) => sample.pose && !DYNAMIC_LETTERS.has(sample.label));
   const staticRanked = staticSamples
@@ -188,12 +189,12 @@ export default function ASLTrainer({
   const modelRef = useRef<MlpModel | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState("A");
-  const [modelStatus, setModelStatus] = useState("Turn on the camera to load hand tracking.");
+  const [modelStatus, setModelStatus] = useState("Turn on the camera to load the trained ASL model and hand tracking.");
   const [captureStatus, setCaptureStatus] = useState("");
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [handDetected, setHandDetected] = useState(false);
-  const [prediction, setPrediction] = useState<{ label: string; match: number; source?: "trained" | "sample" } | null>(null);
+  const [prediction, setPrediction] = useState<Match | null>(null);
   const [transcript, setTranscript] = useState("");
   const [autoAdd, setAutoAdd] = useState(true);
   const stableMatchRef = useRef<{ label: string; since: number; added: boolean } | null>(null);
