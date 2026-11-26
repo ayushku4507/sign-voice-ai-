@@ -4,13 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import ASLTrainer from "./ASLTrainer";
 import { AudioLines, Camera, CircleHelp, Languages, Mic, MicOff, ShieldCheck, Volume2 } from "lucide-react";
 
-type SpeechRecognitionResult = { transcript: string };
-type SpeechRecognitionEventLike = { results: ArrayLike<ArrayLike<SpeechRecognitionResult>> };
+type SpeechRecognitionAlternative = { transcript: string };
+type SpeechRecognitionResult = { 0: SpeechRecognitionAlternative; isFinal: boolean };
+type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResult> };
+type SpeechRecognitionErrorLike = { error?: string };
 type SpeechRecognitionLike = {
   lang: string;
+  continuous: boolean;
   interimResults: boolean;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -32,6 +35,9 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const shouldListenRef = useRef(false);
+  const restartTimerRef = useRef<number | null>(null);
+  const activeSpeechRef = useRef<{ text: string; startedAt: number } | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [spokenText, setSpokenText] = useState("");
@@ -41,7 +47,10 @@ export default function Home() {
 
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
+    shouldListenRef.current = false;
+    if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
     recognitionRef.current?.stop();
+    window.speechSynthesis?.cancel();
   }, []);
 
   async function toggleCamera() {
@@ -64,15 +73,31 @@ export default function Home() {
   }
 
   function speak(text: string) {
-    if (!("speechSynthesis" in window) || !text.trim()) return;
+    const cleanText = text.trim();
+    if (!("speechSynthesis" in window) || !cleanText) return;
+    const active = activeSpeechRef.current;
+    const now = Date.now();
+    // Ignore duplicate activations for the same phrase while its first utterance is starting.
+    if (active?.text === cleanText && now - active.startedAt < 1200) return;
+    activeSpeechRef.current = { text: cleanText, startedAt: now };
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = language;
+    utterance.rate = 1;
+    utterance.onend = () => {
+      if (activeSpeechRef.current?.text === cleanText) activeSpeechRef.current = null;
+    };
+    utterance.onerror = () => {
+      if (activeSpeechRef.current?.text === cleanText) activeSpeechRef.current = null;
+    };
     window.speechSynthesis.speak(utterance);
   }
 
   function toggleListening() {
-    if (listening) {
+    if (shouldListenRef.current) {
+      shouldListenRef.current = false;
+      if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
       recognitionRef.current?.stop();
       setListening(false);
       return;
@@ -80,25 +105,64 @@ export default function Home() {
     const speechWindow = window as SpeechWindow;
     const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
     if (!Recognition) {
-      setHeardText("Speech recognition is not supported in this browser. Try a supported browser or type the message.");
+      setHeardText("Speech recognition is not available in this browser. Try Chrome or Edge, allow microphone access, or type the message.");
       return;
     }
     const recognition = new Recognition();
     recognition.lang = language;
+    recognition.continuous = true;
     recognition.interimResults = true;
+    shouldListenRef.current = true;
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results).map((result) => result[0]?.transcript ?? "").join("");
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript ?? "")
+        .join("");
       setHeardText(transcript);
     };
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
+    recognition.onerror = (event) => {
+      const fatal = event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture";
+      if (fatal) {
+        shouldListenRef.current = false;
+        setListening(false);
+        setHeardText(
+          event.error === "audio-capture"
+            ? "No microphone was found. Connect or enable a microphone, then try again."
+            : "Microphone access was blocked. Allow microphone access for this site, then try again.",
+        );
+      }
+    };
+    recognition.onend = () => {
+      if (!shouldListenRef.current) {
+        setListening(false);
+        return;
+      }
+      // Speech services may stop after pauses. Restart while the user still has listening enabled.
+      restartTimerRef.current = window.setTimeout(() => {
+        if (!shouldListenRef.current) return;
+        try {
+          recognition.start();
+        } catch {
+          restartTimerRef.current = window.setTimeout(() => {
+            if (!shouldListenRef.current) return;
+            try {
+              recognition.start();
+            } catch {
+              shouldListenRef.current = false;
+              setListening(false);
+              setHeardText("Speech recognition stopped. Press Start listening to try again.");
+            }
+          }, 500);
+        }
+      }, 250);
+    };
     recognitionRef.current = recognition;
     try {
       recognition.start();
       setListening(true);
     } catch {
+      shouldListenRef.current = false;
       setListening(false);
-      setHeardText("Could not start microphone recognition. Check browser permissions.");
+      setHeardText("Could not start microphone recognition. Allow microphone access and try again.");
     }
   }
 
