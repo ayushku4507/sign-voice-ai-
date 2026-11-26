@@ -179,13 +179,13 @@ export default function Home() {
       <section className="hero">
         <div className="eyebrow"><span className="eyebrow-line" /> ACCESSIBLE COMMUNICATION, BUILT TOGETHER</div>
         <h1>Make every<br /><span>conversation</span> count.</h1>
-        <p className="hero-copy">A work-in-progress toolkit for ASL fingerspelling and voice. The camera model learns from examples recorded by you in this browser.</p>
+        <p className="hero-copy">A work-in-progress toolkit with a trained ASL alphabet model and voice tools. Camera processing runs in your browser; extra J and Z movement examples stay on this device.</p>
         <div className="hero-actions"><a className="primary-btn" href="#translator">Open translator <span>↗</span></a><a className="text-btn" href="#how-it-works">How it works</a></div>
         <div className="trust-row"><span><ShieldCheck size={15} /> Camera stays in your browser</span><span><CircleHelp size={15} /> ASL examples stay on this device</span></div>
       </section>
 
       <section className="workspace" id="translator">
-        <div className="section-heading"><div><div className="eyebrow">01 / LIVE WORKSPACE</div><h2>Sign to text</h2></div><span className="pill muted">Personal ASL alphabet model</span></div>
+        <div className="section-heading"><div><div className="eyebrow">01 / LIVE WORKSPACE</div><h2>Sign to text</h2></div><span className="pill muted">Trained ASL alphabet model</span></div>
         <div className="workspace-grid">
           <div className="panel camera-panel">
             <div className="panel-head"><span><Camera size={17} /> Camera input</span><span className="live-label"><i /> {cameraOn ? "CAMERA ON" : "STANDBY"}</span></div>
@@ -233,7 +233,7 @@ export default function Home() {
         <div className="steps"><div><span>01</span><h3>Capture</h3><p>Get permission and capture hand movement locally.</p></div><div><span>02</span><h3>Recognize</h3><p>Learn ASL alphabet handshapes; J and Z use motion samples.</p></div><div><span>03</span><h3>Communicate</h3><p>Show uncertainty and let users correct the output.</p></div></div>
       </section>
 
-      <footer><a className="brand" href="#"><span className="brand-mark"><AudioLines size={18} /></span>SignVoice</a><span>Open-source project • Recognition model under development</span><a href="https://github.com/" target="_blank" rel="noreferrer">GitHub ↗</a></footer>
+      <footer><a className="brand" href="#"><span className="brand-mark"><AudioLines size={18} /></span>SignVoice</a><span>Open-source project • Whole-word sign recognition is still under development</span><a href="https://github.com/" target="_blank" rel="noreferrer">GitHub ↗</a></footer>
     </main>
   );
 }
