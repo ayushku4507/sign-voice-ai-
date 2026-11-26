@@ -125,6 +125,8 @@ export default function ASLTrainer({
   const [handDetected, setHandDetected] = useState(false);
   const [prediction, setPrediction] = useState<{ label: string; match: number } | null>(null);
   const [transcript, setTranscript] = useState("");
+  const [autoAdd, setAutoAdd] = useState(true);
+  const stableMatchRef = useRef<{ label: string; since: number; added: boolean } | null>(null);
   const detectorRef = useRef<Detector | null>(null);
   const samplesRef = useRef<Sample[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -244,11 +246,24 @@ export default function ASLTrainer({
                 sequenceRef.current.push(pose);
                 if (sequenceRef.current.length > SEQUENCE_LENGTH) sequenceRef.current.shift();
                 if (frameNumberRef.current % 4 === 0) {
-                  setPrediction(findMatch(pose, sequenceRef.current, samplesRef.current));
+                  const match = findMatch(pose, sequenceRef.current, samplesRef.current);
+                  setPrediction(match);
+                  const now = performance.now();
+                  if (!match) {
+                    stableMatchRef.current = null;
+                  } else if (stableMatchRef.current?.label !== match.label) {
+                    stableMatchRef.current = { label: match.label, since: now, added: false };
+                  } else if (autoAdd && !stableMatchRef.current.added && now - stableMatchRef.current.since >= 900) {
+                    stableMatchRef.current.added = true;
+                    setTranscript((current) => current + match.label);
+                  }
                 }
               } else {
                 sequenceRef.current = [];
-                if (frameNumberRef.current % 4 === 0) setPrediction(null);
+                if (frameNumberRef.current % 4 === 0) {
+                  setPrediction(null);
+                  stableMatchRef.current = null;
+                }
               }
             } catch {
               setModelStatus("Hand tracking paused. Turn the camera off and on to retry.");
@@ -267,7 +282,7 @@ export default function ASLTrainer({
       cancelled = true;
       stop();
     };
-  }, [cameraOn, videoRef]);
+  }, [cameraOn, videoRef, autoAdd]);
 
   const counts = useMemo(() => {
     const result: Record<string, number> = {};
@@ -323,11 +338,13 @@ export default function ASLTrainer({
         </div>
         <div className="asl-live-controls">
           <span className={handDetected ? "asl-indicator on" : "asl-indicator"}>{handDetected ? "HAND FOUND" : "NO HAND"}</span>
+          <button className={autoAdd ? "secondary-btn active" : "secondary-btn"} onClick={() => setAutoAdd((enabled) => !enabled)} aria-pressed={autoAdd}>{autoAdd ? "Auto text: on" : "Auto text: off"}</button>
           <button className="secondary-btn" onClick={addPrediction} disabled={!prediction}>Add letter</button>
         </div>
       </div>
 
       <label className="asl-transcript-label" htmlFor="aslTranscript">Recognized text</label>
+      <p className="small-note">{autoAdd ? "A steady recognized letter is added automatically. Hold each letter briefly; use Space between words." : "Turn on Auto text to add steady recognized letters, or press Add letter."}</p>
       <textarea
         id="aslTranscript"
         className="asl-transcript"
@@ -341,10 +358,11 @@ export default function ASLTrainer({
         <button className="small-action" onClick={() => setTranscript("")}>Clear text</button>
       </div>
 
-      <details className="asl-trainer">
-        <summary>Train your ASL alphabet model</summary>
+      <details className="asl-trainer" open={samples.length === 0}>
+        <summary>Train your ASL alphabet model ({samples.length} examples)</summary>
+        {samples.length === 0 && <p className="asl-first-run"><strong>Recognition is ready after training.</strong> Turn on the camera, choose a letter, hold that handshape in view, and press Capture. Capture several examples for each letter you want to recognize. There is no built-in pre-trained model yet.</p>}
         <p className="small-note">
-          Choose the letter you are signing, then capture several examples with your own hand. Video is not uploaded; only hand landmark numbers are saved in this browser. This is a personal practice model, not a universal or certified translator.
+          Choose the letter you are signing, then capture several examples with your own hand. The live readout above shows the closest trained letter; stable matches can be added to text automatically. Video is not uploaded; only hand landmark numbers are saved in this browser. This recognizes fingerspelled alphabet letters, not full ASL vocabulary signs.
         </p>
         <p className="asl-model-status">{modelStatus}</p>
         <div className="asl-letter-grid" aria-label="Choose an ASL letter">
