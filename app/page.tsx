@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ASLTrainer from "./ASLTrainer";
 import { AudioLines, Camera, CircleHelp, Languages, Mic, MicOff, ShieldCheck, Volume2 } from "lucide-react";
 
 type SpeechRecognitionResult = { transcript: string };
@@ -112,13 +113,13 @@ export default function Home() {
       <section className="hero">
         <div className="eyebrow"><span className="eyebrow-line" /> ACCESSIBLE COMMUNICATION, BUILT TOGETHER</div>
         <h1>Make every<br /><span>conversation</span> count.</h1>
-        <p className="hero-copy">A work-in-progress communication toolkit for Indian Sign Language and voice. Designed with clarity, dignity and privacy in mind.</p>
+        <p className="hero-copy">A work-in-progress toolkit for ASL fingerspelling and voice. The camera model learns from examples recorded by you in this browser.</p>
         <div className="hero-actions"><a className="primary-btn" href="#translator">Open translator <span>↗</span></a><a className="text-btn" href="#how-it-works">How it works</a></div>
-        <div className="trust-row"><span><ShieldCheck size={15} /> Camera stays in your browser</span><span><CircleHelp size={15} /> Recognition model not connected yet</span></div>
+        <div className="trust-row"><span><ShieldCheck size={15} /> Camera stays in your browser</span><span><CircleHelp size={15} /> ASL examples stay on this device</span></div>
       </section>
 
       <section className="workspace" id="translator">
-        <div className="section-heading"><div><div className="eyebrow">01 / LIVE WORKSPACE</div><h2>Sign to text</h2></div><span className="pill muted">Model integration pending</span></div>
+        <div className="section-heading"><div><div className="eyebrow">01 / LIVE WORKSPACE</div><h2>Sign to text</h2></div><span className="pill muted">Personal ASL alphabet model</span></div>
         <div className="workspace-grid">
           <div className="panel camera-panel">
             <div className="panel-head"><span><Camera size={17} /> Camera input</span><span className="live-label"><i /> {cameraOn ? "CAMERA ON" : "STANDBY"}</span></div>
@@ -129,13 +130,11 @@ export default function Home() {
             </div>
             <button className="primary-btn full" onClick={toggleCamera}>{cameraOn ? "Turn camera off" : "Enable camera"}</button>
             {cameraError && <p className="error" role="alert">{cameraError}</p>}
-            <p className="small-note">No video is uploaded or recorded by this prototype.</p>
+            <p className="small-note">Video is not uploaded. Training saves hand landmarks in this browser only.</p>
           </div>
           <div className="panel output-panel">
-            <div className="panel-head"><span><Languages size={17} /> Recognition output</span><span className="pill warning">Not connected</span></div>
-            <div className="empty-output"><div className="wave-symbol">〰</div><strong>Waiting for a validated ISL model</strong><p>Hand tracking alone does not understand sign language. A trained, tested ISL model is required before predictions can appear here.</p></div>
-            <div className="confidence"><span>MODEL CONFIDENCE</span><strong>—</strong></div>
-            <div className="model-foot"><span className="dot amber" /> No predictions are being generated</div>
+            <div className="panel-head"><span><Languages size={17} /> ASL fingerspelling</span><span className="pill warning">{cameraOn ? "Hand tracking on" : "Camera off"}</span></div>
+            <ASLTrainer cameraOn={cameraOn} videoRef={videoRef} />
           </div>
         </div>
       </section>
@@ -165,7 +164,7 @@ export default function Home() {
 
       <section className="section" id="how-it-works">
         <div className="section-heading"><div><div className="eyebrow">04 / TRANSPARENT BY DESIGN</div><h2>Built in stages. Tested with people.</h2></div></div>
-        <div className="steps"><div><span>01</span><h3>Capture</h3><p>Get permission and capture hand movement locally.</p></div><div><span>02</span><h3>Recognize</h3><p>Use a validated ISL model—not hand landmarks alone.</p></div><div><span>03</span><h3>Communicate</h3><p>Show uncertainty and let users correct the output.</p></div></div>
+        <div className="steps"><div><span>01</span><h3>Capture</h3><p>Get permission and capture hand movement locally.</p></div><div><span>02</span><h3>Recognize</h3><p>Learn ASL alphabet handshapes; J and Z use motion samples.</p></div><div><span>03</span><h3>Communicate</h3><p>Show uncertainty and let users correct the output.</p></div></div>
       </section>
 
       <footer><a className="brand" href="#"><span className="brand-mark"><AudioLines size={18} /></span>SignVoice</a><span>Open-source project • Recognition model under development</span><a href="https://github.com/" target="_blank" rel="noreferrer">GitHub ↗</a></footer>
