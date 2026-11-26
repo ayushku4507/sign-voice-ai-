@@ -2,26 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import ASLTrainer from "./ASLTrainer";
-import { AudioLines, Camera, CircleHelp, Languages, Mic, MicOff, ShieldCheck, Volume2 } from "lucide-react";
-
-type SpeechRecognitionAlternative = { transcript: string };
-type SpeechRecognitionResult = { 0: SpeechRecognitionAlternative; isFinal: boolean };
-type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResult> };
-type SpeechRecognitionErrorLike = { error?: string };
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type SpeechWindow = Window & {
-  SpeechRecognition?: new () => SpeechRecognitionLike;
-  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-};
+import SpeechToText from "./SpeechToText";
+import Image from "next/image";
+import { AudioLines, Camera, CircleHelp, Languages, ShieldCheck, Volume2 } from "lucide-react";
 
 const phrases = [
   "I need help.",
@@ -34,22 +17,14 @@ const phrases = [
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const shouldListenRef = useRef(false);
-  const restartTimerRef = useRef<number | null>(null);
   const activeSpeechRef = useRef<{ text: string; startedAt: number } | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [spokenText, setSpokenText] = useState("");
-  const [heardText, setHeardText] = useState("");
   const [language, setLanguage] = useState("en-IN");
-  const [listening, setListening] = useState(false);
 
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
-    shouldListenRef.current = false;
-    if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
-    recognitionRef.current?.stop();
     window.speechSynthesis?.cancel();
   }, []);
 
@@ -93,81 +68,6 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   }
 
-  function toggleListening() {
-    if (shouldListenRef.current) {
-      shouldListenRef.current = false;
-      if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const speechWindow = window as SpeechWindow;
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    if (!Recognition) {
-      setHeardText("Speech recognition is not available in this browser. Try Chrome or Edge, allow microphone access, or type the message.");
-      return;
-    }
-    const recognition = new Recognition();
-    recognition.lang = language;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    shouldListenRef.current = true;
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? "")
-        .join("");
-      setHeardText(transcript);
-    };
-    recognition.onerror = (event) => {
-      const fatal = event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture" || event.error === "network";
-      if (fatal) {
-        shouldListenRef.current = false;
-        setListening(false);
-        setHeardText(
-          event.error === "audio-capture"
-            ? "No microphone was found. Connect or enable a microphone, then try again."
-            : event.error === "network"
-              ? "Speech recognition service is unavailable. Check your connection or try Chrome or Edge."
-              : "Microphone access was blocked. Allow microphone access for this site, then try again.",
-        );
-      }
-    };
-    recognition.onend = () => {
-      if (!shouldListenRef.current) {
-        setListening(false);
-        return;
-      }
-      // Speech services may stop after pauses. Restart while the user still has listening enabled.
-      restartTimerRef.current = window.setTimeout(() => {
-        if (!shouldListenRef.current) return;
-        try {
-          recognition.start();
-        } catch {
-          restartTimerRef.current = window.setTimeout(() => {
-            if (!shouldListenRef.current) return;
-            try {
-              recognition.start();
-            } catch {
-              shouldListenRef.current = false;
-              setListening(false);
-              setHeardText("Speech recognition stopped. Press Start listening to try again.");
-            }
-          }, 500);
-        }
-      }, 250);
-    };
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-      setListening(true);
-    } catch {
-      shouldListenRef.current = false;
-      setListening(false);
-      setHeardText("Could not start microphone recognition. Allow microphone access and try again.");
-    }
-  }
-
   return (
     <main className="shell">
       <header className="topbar">
@@ -201,6 +101,25 @@ export default function Home() {
           <div className="panel output-panel">
             <div className="panel-head"><span><Languages size={17} /> ASL fingerspelling</span><span className="pill warning">{cameraOn ? "Hand tracking on" : "Camera off"}</span></div>
             <ASLTrainer cameraOn={cameraOn} videoRef={videoRef} />
+            <details className="asl-guide">
+              <summary>ASL A–Z handshape picture guide and steps</summary>
+              <div className="asl-guide-content">
+                <ol>
+                  <li>Hold one hand in the camera view with enough light.</li>
+                  <li>Choose a letter picture and match that handshape.</li>
+                  <li>Hold the shape steady until the possible letter appears.</li>
+                  <li>Use Space between letters when spelling separate words.</li>
+                </ol>
+                <Image
+                  src="/asl-alphabet-reference.svg"
+                  alt="Picture chart showing American Sign Language alphabet handshapes from A to Z"
+                  width={393}
+                  height={500}
+                  unoptimized
+                  className="asl-guide-image"
+                />
+              </div>
+            </details>
           </div>
         </div>
       </section>
@@ -208,11 +127,7 @@ export default function Home() {
       <section className="section" id="voice">
         <div className="section-heading"><div><div className="eyebrow">02 / VOICE TOOLS</div><h2>Keep both sides in the conversation.</h2></div></div>
         <div className="voice-grid">
-          <div className="panel voice-card">
-            <div className="card-icon"><Mic size={19} /></div><h3>Speech to text</h3><p>Turn spoken words into live text. Speech recognition support depends on the browser; its speech service may process microphone audio online.</p>
-            <label htmlFor="heardText">Recognized speech</label><textarea id="heardText" value={heardText} onChange={(e) => setHeardText(e.target.value)} placeholder="Speech transcript will appear here, or type/edit it…" />
-            <div className="card-actions"><button className="secondary-btn" onClick={toggleListening}>{listening ? <><MicOff size={16} /> Stop listening</> : <><Mic size={16} /> Start listening</>}</button><span className="small-note" role="status">{listening ? "Listening — words appear as you speak" : "Speech support varies by browser"}</span></div>
-          </div>
+          <SpeechToText language={language} />
           <div className="panel voice-card">
             <div className="card-icon"><Volume2 size={19} /></div><h3>Text to speech</h3><p>Speak typed text aloud. Available voices depend on your device and browser.</p>
             <label htmlFor="spokenText">Text to speak</label><textarea id="spokenText" value={spokenText} onChange={(e) => setSpokenText(e.target.value)} placeholder="Type a message to speak…" />
