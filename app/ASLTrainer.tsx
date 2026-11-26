@@ -158,18 +158,20 @@ function findMatch(
     return {
       label: dynamicBest.label,
       match: Math.max(0, Math.min(100, Math.round((1 - dynamicBest.distance / DYNAMIC_DISTANCE_LIMIT) * 100))),
+      source: "sample",
     };
   }
 
   const trainedMatch = points && model ? predictStatic(points, model) : null;
   if (trainedMatch && trainedMatch.confidence >= 0.58) {
-    return { label: trainedMatch.label, match: Math.round(trainedMatch.confidence * 100) };
+    return { label: trainedMatch.label, match: Math.round(trainedMatch.confidence * 100), source: "trained" };
   }
 
   if (personalStaticBest && personalStaticBest.distance <= STATIC_DISTANCE_LIMIT) {
     return {
       label: personalStaticBest.label,
       match: Math.max(0, Math.min(100, Math.round((1 - personalStaticBest.distance / STATIC_DISTANCE_LIMIT) * 100))),
+      source: "sample",
     };
   }
   return null;
@@ -191,7 +193,7 @@ export default function ASLTrainer({
   const [captureProgress, setCaptureProgress] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [handDetected, setHandDetected] = useState(false);
-  const [prediction, setPrediction] = useState<{ label: string; match: number } | null>(null);
+  const [prediction, setPrediction] = useState<{ label: string; match: number; source?: "trained" | "sample" } | null>(null);
   const [transcript, setTranscript] = useState("");
   const [autoAdd, setAutoAdd] = useState(true);
   const stableMatchRef = useRef<{ label: string; since: number; added: boolean } | null>(null);
@@ -414,7 +416,7 @@ export default function ASLTrainer({
           <span className="asl-readout-label">POSSIBLE LETTER</span>
           <strong>{prediction?.label ?? "—"}</strong>
           <span className="small-note">
-            {prediction ? "Model confidence: " + prediction.match + "%" : handDetected ? "No confident letter match" : "Show one hand in the camera"}
+            {prediction ? (prediction.source === "trained" ? "Trained model confidence: " : "Personal sample match: ") + prediction.match + "%" : handDetected ? "No confident letter match" : "Show one hand in the camera"}
           </span>
         </div>
         <div className="asl-live-controls">
