@@ -127,6 +127,8 @@ export default function ASLTrainer({
   const [transcript, setTranscript] = useState("");
   const [autoAdd, setAutoAdd] = useState(true);
   const stableMatchRef = useRef<{ label: string; since: number; added: boolean } | null>(null);
+  const autoAddRef = useRef(autoAdd);
+  autoAddRef.current = autoAdd;
   const detectorRef = useRef<Detector | null>(null);
   const samplesRef = useRef<Sample[]>([]);
   const rafRef = useRef<number | null>(null);
@@ -253,7 +255,7 @@ export default function ASLTrainer({
                     stableMatchRef.current = null;
                   } else if (stableMatchRef.current?.label !== match.label) {
                     stableMatchRef.current = { label: match.label, since: now, added: false };
-                  } else if (autoAdd && !stableMatchRef.current.added && now - stableMatchRef.current.since >= 900) {
+                  } else if (autoAddRef.current && !stableMatchRef.current.added && now - stableMatchRef.current.since >= 900) {
                     stableMatchRef.current.added = true;
                     setTranscript((current) => current + match.label);
                   }
@@ -282,7 +284,7 @@ export default function ASLTrainer({
       cancelled = true;
       stop();
     };
-  }, [cameraOn, videoRef, autoAdd]);
+  }, [cameraOn, videoRef]);
 
   const counts = useMemo(() => {
     const result: Record<string, number> = {};
