@@ -135,7 +135,7 @@ export default function ASLTrainer({
 
   useEffect(() => {
     samplesRef.current = samples;
-  }, [samples, storageReady]);
+  }, [samples]);
 
   useEffect(() => {
     try {
@@ -155,7 +155,7 @@ export default function ASLTrainer({
     } catch {
       setCaptureStatus("Browser storage is full. Clear samples and train fewer examples.");
     }
-  }, [samples]);
+  }, [samples, storageReady]);
 
   useEffect(() => {
     let cancelled = false;
