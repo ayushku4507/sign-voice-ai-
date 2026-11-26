@@ -120,14 +120,16 @@ export default function Home() {
       setHeardText(transcript);
     };
     recognition.onerror = (event) => {
-      const fatal = event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture";
+      const fatal = event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture" || event.error === "network";
       if (fatal) {
         shouldListenRef.current = false;
         setListening(false);
         setHeardText(
           event.error === "audio-capture"
             ? "No microphone was found. Connect or enable a microphone, then try again."
-            : "Microphone access was blocked. Allow microphone access for this site, then try again.",
+            : event.error === "network"
+              ? "Speech recognition service is unavailable. Check your connection or try Chrome or Edge."
+              : "Microphone access was blocked. Allow microphone access for this site, then try again.",
         );
       }
     };
@@ -207,9 +209,9 @@ export default function Home() {
         <div className="section-heading"><div><div className="eyebrow">02 / VOICE TOOLS</div><h2>Keep both sides in the conversation.</h2></div></div>
         <div className="voice-grid">
           <div className="panel voice-card">
-            <div className="card-icon"><Mic size={19} /></div><h3>Speech to text</h3><p>Turn spoken words into readable text using your browser&apos;s speech recognition, where supported.</p>
+            <div className="card-icon"><Mic size={19} /></div><h3>Speech to text</h3><p>Turn spoken words into live text. Speech recognition support depends on the browser; its speech service may process microphone audio online.</p>
             <label htmlFor="heardText">Recognized speech</label><textarea id="heardText" value={heardText} onChange={(e) => setHeardText(e.target.value)} placeholder="Speech transcript will appear here, or type/edit it…" />
-            <div className="card-actions"><button className="secondary-btn" onClick={toggleListening}>{listening ? <><MicOff size={16} /> Stop listening</> : <><Mic size={16} /> Start listening</>}</button><span className="small-note">Browser support varies</span></div>
+            <div className="card-actions"><button className="secondary-btn" onClick={toggleListening}>{listening ? <><MicOff size={16} /> Stop listening</> : <><Mic size={16} /> Start listening</>}</button><span className="small-note" role="status">{listening ? "Listening — words appear as you speak" : "Speech support varies by browser"}</span></div>
           </div>
           <div className="panel voice-card">
             <div className="card-icon"><Volume2 size={19} /></div><h3>Text to speech</h3><p>Speak typed text aloud. Available voices depend on your device and browser.</p>
