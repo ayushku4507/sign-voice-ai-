@@ -13,7 +13,8 @@
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@mediapipe/tasks-vision": "1.2.3"
+    "@mediapipe/tasks-vision": "1.2.3",
+    "@huggingface/transformers": "4.3.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
