@@ -13,6 +13,8 @@ type Detector = {
   close: () => void;
 };
 type Capture = { label: string; startedAt: number; lastSampleAt: number; frames: number[][] };
+type MlpLayer = { w: number[][]; b: number[]; act: "relu" | "softmax" | "linear" };
+type MlpModel = { labels: string[]; featureLength: number; layers: MlpLayer[] };
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const STORAGE_KEY = "signvoice-asl-alphabet-v1";
@@ -73,13 +75,68 @@ function average(frames: number[][]) {
   );
 }
 
-function findMatch(pose: number[] | null, sequence: number[][], samples: Sample[]) {
+function modelFeatures(points: Point[]) {
+  if (points.length !== 21) return null;
+  const wrist = points[0];
+  const middle = points[9];
+  const scale = Math.max(
+    0.000001,
+    Math.hypot(middle.x - wrist.x, middle.y - wrist.y, middle.z - wrist.z),
+  );
+  const output = new Float32Array(63);
+  points.forEach((point, index) => {
+    output[index * 3] = (point.x - wrist.x) / scale;
+    output[index * 3 + 1] = (point.y - wrist.y) / scale;
+    output[index * 3 + 2] = (point.z - wrist.z) / scale;
+  });
+  return output;
+}
+
+function predictStatic(points: Point[], model: MlpModel) {
+  const features = modelFeatures(points);
+  if (!features || model.featureLength !== features.length) return null;
+  let activations: number[] = Array.from(features);
+  for (const layer of model.layers) {
+    const output = layer.b.slice();
+    for (let inputIndex = 0; inputIndex < activations.length; inputIndex += 1) {
+      const value = activations[inputIndex];
+      if (value === 0) continue;
+      const row = layer.w[inputIndex];
+      for (let outputIndex = 0; outputIndex < output.length; outputIndex += 1) {
+        output[outputIndex] += value * row[outputIndex];
+      }
+    }
+    if (layer.act === "relu") {
+      activations = output.map((value) => Math.max(0, value));
+    } else if (layer.act === "softmax") {
+      const max = Math.max(...output);
+      const exponentials = output.map((value) => Math.exp(value - max));
+      const total = exponentials.reduce((sum, value) => sum + value, 0);
+      activations = exponentials.map((value) => value / total);
+    } else {
+      activations = output;
+    }
+  }
+  let bestIndex = 0;
+  for (let index = 1; index < activations.length; index += 1) {
+    if (activations[index] > activations[bestIndex]) bestIndex = index;
+  }
+  return { label: model.labels[bestIndex], confidence: activations[bestIndex] };
+}
+
+function findMatch(
+  pose: number[] | null,
+  points: Point[] | undefined,
+  sequence: number[][],
+  samples: Sample[],
+  model: MlpModel | null,
+) {
   if (!pose) return null;
   const staticSamples = samples.filter((sample) => sample.pose && !DYNAMIC_LETTERS.has(sample.label));
   const staticRanked = staticSamples
     .map((sample) => ({ label: sample.label, distance: distance(pose, sample.pose!) }))
     .sort((a, b) => a.distance - b.distance);
-  const staticBest = staticRanked[0] ?? null;
+  const personalStaticBest = staticRanked[0] ?? null;
 
   let dynamicBest: { label: string; distance: number } | null = null;
   if (sequence.length >= SEQUENCE_LENGTH) {
@@ -97,15 +154,25 @@ function findMatch(pose: number[] | null, sequence: number[][], samples: Sample[
     dynamicBest = ranked[0] ?? null;
   }
 
-  const dynamicIsBetter =
-    dynamicBest &&
-    dynamicBest.distance < DYNAMIC_DISTANCE_LIMIT &&
-    (!staticBest || dynamicBest.distance < staticBest.distance);
-  const best = dynamicIsBetter ? dynamicBest : staticBest;
-  if (!best) return null;
-  const limit = DYNAMIC_LETTERS.has(best.label) ? DYNAMIC_DISTANCE_LIMIT : STATIC_DISTANCE_LIMIT;
-  if (best.distance > limit) return null;
-  return { label: best.label, match: Math.max(0, Math.min(100, Math.round((1 - best.distance / limit) * 100))) };
+  if (dynamicBest && dynamicBest.distance <= DYNAMIC_DISTANCE_LIMIT) {
+    return {
+      label: dynamicBest.label,
+      match: Math.max(0, Math.min(100, Math.round((1 - dynamicBest.distance / DYNAMIC_DISTANCE_LIMIT) * 100))),
+    };
+  }
+
+  const trainedMatch = points && model ? predictStatic(points, model) : null;
+  if (trainedMatch && trainedMatch.confidence >= 0.58) {
+    return { label: trainedMatch.label, match: Math.round(trainedMatch.confidence * 100) };
+  }
+
+  if (personalStaticBest && personalStaticBest.distance <= STATIC_DISTANCE_LIMIT) {
+    return {
+      label: personalStaticBest.label,
+      match: Math.max(0, Math.min(100, Math.round((1 - personalStaticBest.distance / STATIC_DISTANCE_LIMIT) * 100))),
+    };
+  }
+  return null;
 }
 
 export default function ASLTrainer({
@@ -116,6 +183,7 @@ export default function ASLTrainer({
   videoRef: RefObject<HTMLVideoElement | null>;
 }) {
   const [samples, setSamples] = useState<Sample[]>([]);
+  const modelRef = useRef<MlpModel | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState("A");
   const [modelStatus, setModelStatus] = useState("Turn on the camera to load hand tracking.");
@@ -181,7 +249,7 @@ export default function ASLTrainer({
 
     if (!cameraOn) {
       stop();
-      setModelStatus("Turn on the camera to load hand tracking.");
+      setModelStatus("Turn on the camera to load the trained ASL model and hand tracking.");
       return () => {
         cancelled = true;
         stop();
@@ -190,7 +258,14 @@ export default function ASLTrainer({
 
     async function start() {
       try {
-        setModelStatus("Loading on-device hand tracking…");
+        setModelStatus("Loading the trained ASL alphabet model and hand tracking…");
+        const response = await fetch("/models/asl-alphabet-mlp.json");
+        if (response.ok) {
+          const model = (await response.json()) as MlpModel;
+          if (model.featureLength === 63 && Array.isArray(model.labels) && Array.isArray(model.layers)) {
+            modelRef.current = model;
+          }
+        }
         const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
         const vision = await FilesetResolver.forVisionTasks(WASM_URL);
         const created = await HandLandmarker.createFromOptions(vision, {
@@ -207,7 +282,11 @@ export default function ASLTrainer({
         }
         detector = created as unknown as Detector;
         detectorRef.current = detector;
-        setModelStatus("Hand tracking ready. Train your letter examples below.");
+        setModelStatus(
+          modelRef.current
+            ? "Trained ASL model ready for 24 static letters. J and Z need motion examples."
+            : "Hand tracking ready, but the trained model did not load. Capture examples for letters.",
+        );
         const loop = () => {
           if (cancelled || !detector) return;
           const video = videoRef.current;
@@ -248,7 +327,7 @@ export default function ASLTrainer({
                 sequenceRef.current.push(pose);
                 if (sequenceRef.current.length > SEQUENCE_LENGTH) sequenceRef.current.shift();
                 if (frameNumberRef.current % 4 === 0) {
-                  const match = findMatch(pose, sequenceRef.current, samplesRef.current);
+                  const match = findMatch(pose, points, sequenceRef.current, samplesRef.current, modelRef.current);
                   setPrediction(match);
                   const now = performance.now();
                   if (!match) {
@@ -275,7 +354,7 @@ export default function ASLTrainer({
         };
         loop();
       } catch {
-        setModelStatus("Could not load hand tracking. Check your internet connection and try again.");
+        setModelStatus("Could not load the ASL model or hand tracking. Check your internet connection and try again.");
       }
     }
 
@@ -335,7 +414,7 @@ export default function ASLTrainer({
           <span className="asl-readout-label">POSSIBLE LETTER</span>
           <strong>{prediction?.label ?? "—"}</strong>
           <span className="small-note">
-            {prediction ? "Closest-example match: " + prediction.match + "% (rough estimate)" : handDetected ? "No close trained match yet" : "Show one hand in the camera"}
+            {prediction ? "Model confidence: " + prediction.match + "%" : handDetected ? "No confident letter match" : "Show one hand in the camera"}
           </span>
         </div>
         <div className="asl-live-controls">
@@ -362,9 +441,9 @@ export default function ASLTrainer({
 
       <details className="asl-trainer" open={samples.length === 0}>
         <summary>Train your ASL alphabet model ({samples.length} examples)</summary>
-        {samples.length === 0 && <p className="asl-first-run"><strong>Recognition is ready after training.</strong> Turn on the camera, choose a letter, hold that handshape in view, and press Capture. Capture several examples for each letter you want to recognize. There is no built-in pre-trained model yet.</p>}
+        {samples.length === 0 && <p className="asl-first-run"><strong>A trained model is included for 24 static ASL letters.</strong> Turn on the camera to recognize A–I and K–Y. J and Z use movement, so capture examples for those two letters.</p>}
         <p className="small-note">
-          Choose the letter you are signing, then capture several examples with your own hand. The live readout above shows the closest trained letter; stable matches can be added to text automatically. Video is not uploaded; only hand landmark numbers are saved in this browser. This recognizes fingerspelled alphabet letters, not full ASL vocabulary signs.
+          The built-in neural model recognizes A–I and K–Y from hand landmarks. Capture J and Z motion examples with your own hand; those samples stay in this browser. Camera video is not uploaded. This recognizes fingerspelled letters, not full ASL vocabulary signs. Model weights: <a href="https://github.com/JmBagares/SignLanguageDetector" target="_blank" rel="noreferrer">SignSense by Jan Manuel Bagares (MIT)</a>.
         </p>
         <p className="asl-model-status">{modelStatus}</p>
         <div className="asl-letter-grid" aria-label="Choose an ASL letter">
@@ -386,7 +465,7 @@ export default function ASLTrainer({
             {capturing ? "Capturing…" : "Capture " + selectedLetter + " example"}
           </button>
           <span className="small-note">
-            {DYNAMIC_LETTERS.has(selectedLetter) ? "J and Z use movement; draw the sign once." : "Hold the handshape still for a moment."}
+            {DYNAMIC_LETTERS.has(selectedLetter) ? "J and Z use movement; capture several clear examples." : "The built-in model handles static letters; examples here are optional."}
           </span>
         </div>
         {capturing && <progress className="asl-progress" value={captureProgress} max={100} aria-label="Capture progress" />}
