@@ -116,6 +116,7 @@ export default function ASLTrainer({
   videoRef: RefObject<HTMLVideoElement | null>;
 }) {
   const [samples, setSamples] = useState<Sample[]>([]);
+  const [storageReady, setStorageReady] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState("A");
   const [modelStatus, setModelStatus] = useState("Turn on the camera to load hand tracking.");
   const [captureStatus, setCaptureStatus] = useState("");
@@ -134,7 +135,7 @@ export default function ASLTrainer({
 
   useEffect(() => {
     samplesRef.current = samples;
-  }, [samples]);
+  }, [samples, storageReady]);
 
   useEffect(() => {
     try {
@@ -142,10 +143,13 @@ export default function ASLTrainer({
       if (saved) setSamples(JSON.parse(saved) as Sample[]);
     } catch {
       setCaptureStatus("Saved training examples could not be loaded.");
+    } finally {
+      setStorageReady(true);
     }
   }, []);
 
   useEffect(() => {
+    if (!storageReady) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(samples));
     } catch {
@@ -160,10 +164,9 @@ export default function ASLTrainer({
     const stop = () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
-      detectorRef.current?.close();
-      detectorRef.current = null;
-      detector?.close();
+      if (detector) detector.close();
       detector = null;
+      detectorRef.current = null;
       captureRef.current = null;
       sequenceRef.current = [];
       lastVideoTimeRef.current = -1;
@@ -243,8 +246,9 @@ export default function ASLTrainer({
                 if (frameNumberRef.current % 4 === 0) {
                   setPrediction(findMatch(pose, sequenceRef.current, samplesRef.current));
                 }
-              } else if (frameNumberRef.current % 4 === 0) {
-                setPrediction(null);
+              } else {
+                sequenceRef.current = [];
+                if (frameNumberRef.current % 4 === 0) setPrediction(null);
               }
             } catch {
               setModelStatus("Hand tracking paused. Turn the camera off and on to retry.");
