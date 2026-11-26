@@ -125,11 +125,16 @@ export default function ASLTrainer({
   const [prediction, setPrediction] = useState<{ label: string; match: number } | null>(null);
   const [transcript, setTranscript] = useState("");
   const detectorRef = useRef<Detector | null>(null);
+  const samplesRef = useRef<Sample[]>([]);
   const rafRef = useRef<number | null>(null);
   const captureRef = useRef<Capture | null>(null);
   const sequenceRef = useRef<number[][]>([]);
   const lastVideoTimeRef = useRef(-1);
   const frameNumberRef = useRef(0);
+
+  useEffect(() => {
+    samplesRef.current = samples;
+  }, [samples]);
 
   useEffect(() => {
     try {
@@ -160,6 +165,8 @@ export default function ASLTrainer({
       detector?.close();
       detector = null;
       captureRef.current = null;
+      sequenceRef.current = [];
+      lastVideoTimeRef.current = -1;
       setCapturing(false);
       setPrediction(null);
       setHandDetected(false);
@@ -234,7 +241,7 @@ export default function ASLTrainer({
                 sequenceRef.current.push(pose);
                 if (sequenceRef.current.length > SEQUENCE_LENGTH) sequenceRef.current.shift();
                 if (frameNumberRef.current % 4 === 0) {
-                  setPrediction(findMatch(pose, sequenceRef.current, samples));
+                  setPrediction(findMatch(pose, sequenceRef.current, samplesRef.current));
                 }
               } else if (frameNumberRef.current % 4 === 0) {
                 setPrediction(null);
@@ -256,7 +263,7 @@ export default function ASLTrainer({
       cancelled = true;
       stop();
     };
-  }, [cameraOn, samples, videoRef]);
+  }, [cameraOn, videoRef]);
 
   const counts = useMemo(() => {
     const result: Record<string, number> = {};
