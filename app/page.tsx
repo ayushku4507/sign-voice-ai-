@@ -134,7 +134,7 @@ export default function Home() {
             <div className="card-actions"><button className="secondary-btn" onClick={() => speak(spokenText)}><Volume2 size={16} /> Speak message</button><span className="small-note">On-device browser voice</span></div>
           </div>
         </div>
-        <div className="language-row"><label htmlFor="language">Speech language</label><select id="language" value={language} onChange={(e) => setLanguage(e.target.value)}><option value="en-IN">English (India)</option><option value="hi-IN">Hindi</option><option value="en-US">English (US)</option></select><span className="small-note">This changes browser speech settings, not automatic translation.</span></div>
+        <div className="language-row"><label htmlFor="language">Speech language</label><select id="language" value={language} onChange={(e) => setLanguage(e.target.value)}><option value="en-IN">English (India)</option><option value="hi-IN">Hindi</option><option value="en-US">English (US)</option></select><span className="small-note">This selects the spoken language; it does not translate between languages.</span></div>
       </section>
 
       <section className="section" id="emergency">
