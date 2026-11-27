@@ -56,7 +56,8 @@ export default function DynamicSignTrainer({
   const [examples, setExamples] = useState<Example[]>([]);
   const [status, setStatus] = useState("Turn on the camera to record motion examples.");
   const [trained, setTrained] = useState(false);
-  const [recording, setRecording] = useState(false);\n  const [training, setTraining] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [training, setTraining] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [prediction, setPrediction] = useState("");
   const [progress, setProgress] = useState(0);
@@ -65,7 +66,11 @@ export default function DynamicSignTrainer({
   const sequenceRef = useRef<number[][]>([]);
   const captureRef = useRef<number[][] | null>(null);
   const lastSampleRef = useRef(0);
-  const lastVideoRef = useRef(-1);\n  const lastInferenceRef = useRef(0);\n  const inferenceBusyRef = useRef(false);\n  const labelRef = useRef(label);\n  labelRef.current = label;
+  const lastVideoRef = useRef(-1);
+  const lastInferenceRef = useRef(0);
+  const inferenceBusyRef = useRef(false);
+  const labelRef = useRef(label);
+  labelRef.current = label;
   const modelRef = useRef<TfModel | null>(null);
   const labelsRef = useRef<string[]>([]);
   const examplesRef = useRef<Example[]>([]);
@@ -165,7 +170,9 @@ export default function DynamicSignTrainer({
               }
               sequenceRef.current.push(frame);
               if (sequenceRef.current.length > FRAME_COUNT) sequenceRef.current.shift();
-              if (modelRef.current && sequenceRef.current.length === FRAME_COUNT && !trainingRef.current && now - lastInferenceRef.current > 850 && !inferenceBusyRef.current) {\n                lastInferenceRef.current = now;\n                inferenceBusyRef.current = true;
+              if (modelRef.current && sequenceRef.current.length === FRAME_COUNT && !trainingRef.current && now - lastInferenceRef.current > 850 && !inferenceBusyRef.current) {
+                lastInferenceRef.current = now;
+                inferenceBusyRef.current = true;
                 const currentModel = modelRef.current;
                 const labels = labelsRef.current;
                 void import("@tensorflow/tfjs").then((tf) => {
@@ -227,6 +234,7 @@ export default function DynamicSignTrainer({
       return;
     }
     trainingRef.current = true;
+    setTraining(true);
     setStatus("Training your local TensorFlow model…");
     try {
       const tf = await import("@tensorflow/tfjs");
@@ -253,6 +261,7 @@ export default function DynamicSignTrainer({
       setStatus("Training failed. Clear a few examples or reload the page and try again.");
     } finally {
       trainingRef.current = false;
+      setTraining(false);
     }
   }
 
