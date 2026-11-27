@@ -56,7 +56,7 @@ export default function DynamicSignTrainer({
   const [examples, setExamples] = useState<Example[]>([]);
   const [status, setStatus] = useState("Turn on the camera to record motion examples.");
   const [trained, setTrained] = useState(false);
-  const [recording, setRecording] = useState(false);
+  const [recording, setRecording] = useState(false);\n  const [training, setTraining] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [prediction, setPrediction] = useState("");
   const [progress, setProgress] = useState(0);
@@ -65,7 +65,7 @@ export default function DynamicSignTrainer({
   const sequenceRef = useRef<number[][]>([]);
   const captureRef = useRef<number[][] | null>(null);
   const lastSampleRef = useRef(0);
-  const lastVideoRef = useRef(-1);
+  const lastVideoRef = useRef(-1);\n  const lastInferenceRef = useRef(0);\n  const inferenceBusyRef = useRef(false);\n  const labelRef = useRef(label);\n  labelRef.current = label;
   const modelRef = useRef<TfModel | null>(null);
   const labelsRef = useRef<string[]>([]);
   const examplesRef = useRef<Example[]>([]);
@@ -155,7 +155,7 @@ export default function DynamicSignTrainer({
                 lastSampleRef.current = now;
                 setProgress(Math.min(100, Math.round((captureRef.current.length / FRAME_COUNT) * 100)));
                 if (captureRef.current.length >= FRAME_COUNT) {
-                  const name = label.trim().toLocaleLowerCase();
+                  const name = labelRef.current.trim().toLocaleLowerCase();
                   setExamples((current) => [...current, { label: name, frames: resample(captureRef.current ?? []) }]);
                   captureRef.current = null;
                   setRecording(false);
@@ -165,7 +165,7 @@ export default function DynamicSignTrainer({
               }
               sequenceRef.current.push(frame);
               if (sequenceRef.current.length > FRAME_COUNT) sequenceRef.current.shift();
-              if (modelRef.current && sequenceRef.current.length === FRAME_COUNT && !trainingRef.current && now - (lastSampleRef.current || 0) > 800) {
+              if (modelRef.current && sequenceRef.current.length === FRAME_COUNT && !trainingRef.current && now - lastInferenceRef.current > 850 && !inferenceBusyRef.current) {\n                lastInferenceRef.current = now;\n                inferenceBusyRef.current = true;
                 const currentModel = modelRef.current;
                 const labels = labelsRef.current;
                 void import("@tensorflow/tfjs").then((tf) => {
@@ -184,7 +184,7 @@ export default function DynamicSignTrainer({
                       lastPredictionRef.current = { ...prior, emitted: true };
                       setTranscript((current) => current ? current + " " + guessed : guessed);
                     }
-                  }).catch(() => { input.dispose(); output.dispose(); });
+                  }).catch(() => { inferenceBusyRef.current = false; input.dispose(); output.dispose(); });
                 });
               }
             } else {
@@ -202,7 +202,7 @@ export default function DynamicSignTrainer({
     }
     void start();
     return () => { cancelled = true; stop(); };
-  }, [cameraOn, videoRef, label]);
+  }, [cameraOn, videoRef]);
 
   const counts = examples.reduce<Record<string, number>>((counts, example) => {
     counts[example.label] = (counts[example.label] ?? 0) + 1;
@@ -282,7 +282,7 @@ export default function DynamicSignTrainer({
       <input id="dynamicSignLabel" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Type a word or phrase" maxLength={40} />
       <div className="asl-capture-row" style={{ marginTop: 12 }}>
         <button className="secondary-btn" onClick={record} disabled={recording || !cameraOn}>{recording ? "Recording…" : "Record sign example"}</button>
-        <button className="primary-btn" onClick={() => void train()} disabled={recording || trainingRef.current}>Train TensorFlow model</button>
+        <button className="primary-btn" onClick={() => void train()} disabled={recording || training}>Train TensorFlow model</button>
         <span className="small-note">{progress}%</span>
       </div>
       {recording && <progress className="asl-progress" value={progress} max={100} aria-label="Motion capture progress" />}
