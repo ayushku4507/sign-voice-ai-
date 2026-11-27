@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ASLTrainer from "./ASLTrainer";
+import DynamicSignTrainer from "./DynamicSignTrainer";
 import SpeechToText from "./SpeechToText";
 import Image from "next/image";
 import { AudioLines, Camera, CircleHelp, Languages, ShieldCheck, Volume2 } from "lucide-react";
@@ -101,6 +102,7 @@ export default function Home() {
           <div className="panel output-panel">
             <div className="panel-head"><span><Languages size={17} /> ASL fingerspelling</span><span className="pill warning">{cameraOn ? "Hand tracking on" : "Camera off"}</span></div>
             <ASLTrainer cameraOn={cameraOn} videoRef={videoRef} />
+            <DynamicSignTrainer cameraOn={cameraOn} videoRef={videoRef} />
             <details className="asl-guide">
               <summary>ASL A–Z handshape picture guide and steps</summary>
               <div className="asl-guide-content">
